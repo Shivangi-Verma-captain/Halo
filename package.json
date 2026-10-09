@@ -1,0 +1,26 @@
+{
+  "name": "who-stole-the-moon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Who Stole the Moon? — cozy fantasy social mystery multiplayer game",
+  "type": "module",
+  "packageManager": "npm@11.19.0",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
+    "test": "npm run test -w shared && npm run test -w server",
+    "test:e2e": "npm run test:e2e -w client",
+    "lint": "echo \"(lint placeholder — TypeScript build is the gate)\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,60 @@
+:root {
+  --ink: #1a1b3a;
+  --ink-2: #26264d;
+  --sky: #b9a8d9;
+  --cream: #f7ead7;
+  --gold: #f2c572;
+  --coral: #e88ca0;
+  --teal: #8fd6b4;
+  --muted: #9aa0c3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: "Karla", system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Fraunces", Georgia, serif;
+  margin: 0.4em 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+kbd {
+  background: rgba(247, 234, 215, 0.16);
+  border: 1px solid rgba(247, 234, 215, 0.35);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 0.85em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

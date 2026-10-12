@@ -7,6 +7,8 @@ export interface PlayerPublic {
   x: number;
   y: number;
   connected: boolean;
+  /** The first connected player in the room may start a classic round. */
+  isHost?: boolean;
   /** true when the player pressed Ready (lobby) */
   ready: boolean;
   /** clues this player has personally discovered (ids) */
@@ -69,6 +71,7 @@ export interface RoundConfig {
  *  except to the culprit themselves via `youAreCulprit`. */
 export interface ClientWorldState {
   phase: Phase;
+  targetPlayers: number;
   phaseEndsAt: number | null; // epoch ms, null for open-ended lobby
   players: PlayerPublic[];
   /** clues already taken globally (id -> playerId who found it first).

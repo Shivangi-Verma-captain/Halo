@@ -10,6 +10,7 @@ import {
 import { getSocket } from "./socket";
 import { setMuted, isMuted as getMuted, sfx } from "./sound";
 import { initializeFirebaseAnalytics } from "./firebase";
+import { startLocalMystery, localResult, type LocalHuman } from "./game/localMystery";
 import PhaserMount from "./game/PhaserMount";
 import Landing from "./components/Landing";
 import {
@@ -21,19 +22,29 @@ import {
   Results,
   TaskPanel,
   Voting,
+  PlaceGuide,
+  LocalWitnessPanel,
 } from "./components/Panels";
 import type { Interactable } from "./game/VillageScene";
 
-type Panel = "journal" | "tasks" | "chat" | "villagers" | "vote" | null;
+type Panel = "journal" | "tasks" | "chat" | "villagers" | "vote" | "places" | null;
 
 export default function App() {
   const [screen, setScreen] = useState<"landing" | "village">("landing");
+  const [localMode, setLocalMode] = useState(false);
+  const [localHumans, setLocalHumans] = useState<LocalHuman[]>([]);
+  const [localCulprit, setLocalCulprit] = useState("");
+  const [localScenario, setLocalScenario] = useState<ReturnType<typeof startLocalMystery>["scenario"] | null>(null);
+  const [localRound, setLocalRound] = useState(0);
+  const [localTurn, setLocalTurn] = useState(0);
+  const [accuseOpen, setAccuseOpen] = useState(false);
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState<AvatarId>("moth");
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const targetPlayersRef = useRef(5);
 
   const [conn, setConn] = useState("connecting");
   const [myId, setMyId] = useState("");
@@ -42,7 +53,9 @@ export default function App() {
   const [panel, setPanel] = useState<Panel>(null);
   const [muted, setM] = useState(getMuted());
   const worldRef = useRef<ClientWorldState | null>(null);
+  const myIdRef = useRef("");
   worldRef.current = world;
+  myIdRef.current = myId;
 
   useEffect(() => {
     void initializeFirebaseAnalytics();
@@ -79,17 +92,32 @@ export default function App() {
 
   // Socket lifecycle — attach once when entering village.
   useEffect(() => {
-    if (screen !== "village") return;
+    if (screen !== "village" || localMode) return;
     const socket = getSocket();
 
     const onConnect = () => {
       setConn("connected");
       // (Re)join on every connect — covers first join + reconnects.
-      socket.emit(Events.Join, { name: name.trim(), avatar });
+      socket.emit(Events.Join, { name: name.trim(), avatar, targetPlayers: targetPlayersRef.current });
     };
     const onDisconnect = () => {
       setConn("disconnected");
-      showToast("Lantern dimmed — connection lost. Trying to rekindle…");
+      if (!myIdRef.current) {
+        setJoinError("The multiplayer server disconnected before you joined. Check its address and try again.");
+        setJoining(false);
+        myIdRef.current = "join-error";
+        setScreen("landing");
+      } else showToast("Lantern dimmed — connection lost. Trying to rekindle…");
+    };
+    const onConnectError = () => {
+      setConn("disconnected");
+      if (!myIdRef.current) {
+        setJoinError("Could not connect to the multiplayer server. Solo Mystery remains available offline.");
+        setJoining(false);
+        myIdRef.current = "join-error";
+        socket.disconnect();
+        setScreen("landing");
+      } else showToast("Multiplayer connection lost. Trying to rekindle…");
     };
     const onJoined = (payload: { playerId: string; name: string; nameAdjusted?: boolean }) => {
       setMyId(payload.playerId);
@@ -138,9 +166,12 @@ export default function App() {
     const onErr = (payload: { message?: string }) => {
       const msg = payload?.message ?? "Something rustled in the dark.";
       // Join-phase errors return to landing messaging; in-game = toast.
-      if (!myId) {
+      if (!myIdRef.current) {
         setJoinError(msg);
         setJoining(false);
+        myIdRef.current = "join-error";
+        getSocket().disconnect();
+        setScreen("landing");
       } else {
         sfx.error();
         showToast(msg);
@@ -149,6 +180,7 @@ export default function App() {
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
     socket.on(Events.Joined, onJoined);
     socket.on(Events.State, onState);
     socket.on(Events.Players, onPlayers);
@@ -166,6 +198,7 @@ export default function App() {
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.off(Events.Joined, onJoined);
       socket.off(Events.State, onState);
       socket.off(Events.Players, onPlayers);
@@ -175,27 +208,58 @@ export default function App() {
       socket.off(Events.Error, onErr);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
+  }, [screen, localMode]);
 
-  const join = useCallback(() => {
+  const join = useCallback((targetPlayers: number) => {
     const trimmed = name.trim();
     if (trimmed.length < 2 || trimmed.length > 16) {
       setJoinError("Names need 2–16 characters.");
       return;
     }
     setJoining(true);
+    setLocalMode(false);
+    targetPlayersRef.current = targetPlayers;
     setJoinError(null);
     setConn("connecting");
+    myIdRef.current = "";
+    setMyId("");
+    setWorld(null);
     setScreen("village");
   }, [name, avatar]);
 
+  const beginLocal = useCallback((humans: LocalHuman[]) => {
+    const roster = humans.map((p) => ({ ...p, name: p.name.trim() }));
+    if (roster.some((p) => p.name.length < 2 || p.name.length > 16)) {
+      setJoinError("Each investigator needs a name between 2 and 16 characters.");
+      return;
+    }
+    const nextRound = localRound + 1;
+    const local = startLocalMystery(roster, nextRound);
+    setLocalHumans(roster);
+    setLocalCulprit(local.culpritId);
+    setLocalScenario(local.scenario);
+    setLocalRound(nextRound);
+    setLocalTurn(0);
+    setLocalMode(true);
+    setMyId(local.world.players[0].id);
+    myIdRef.current = local.world.players[0].id;
+    setWorld(local.world);
+    setPanel(null);
+    setAccuseOpen(false);
+    setScreen("village");
+  }, [localRound]);
+
   const emitMove = useCallback((x: number, y: number) => {
+    if (localMode) {
+      setWorld((w) => w ? { ...w, players: w.players.map((p) => p.id === myId ? { ...p, x, y } : p) } : w);
+      return;
+    }
     try {
       getSocket().emit(Events.Move, { x, y });
     } catch {
       /* offline — will resync on reconnect */
     }
-  }, []);
+  }, [localMode, myId]);
 
   const emitStep = useCallback(() => {
     sfx.step();
@@ -209,6 +273,7 @@ export default function App() {
         avatar: p.avatar,
         x: p.x,
         y: p.y,
+        isAi: !p.connected,
       })),
     [world],
   );
@@ -257,6 +322,23 @@ export default function App() {
 
   const doInteract = useCallback(() => {
     if (!nearby) return;
+    if (localMode) {
+      setWorld((w) => {
+        if (!w) return w;
+        if (nearby.kind === "clue") {
+          const clue = w.clues.find((c) => c.id === nearby.id);
+          if (!clue || w.cluesTaken[clue.id]) return w;
+          sfx.clue();
+          showToast(`Clue discovered: ${clue.name}`);
+          return { ...w, cluesTaken: { ...w.cluesTaken, [clue.id]: myId }, myClues: [...w.myClues, { ...clue, journalText: clue.description }], players: w.players.map((p) => p.id === myId ? { ...p, cluesFound: [...p.cluesFound, clue.id] } : p) };
+        }
+        if (w.myTasks.includes(nearby.id)) return w;
+        sfx.task();
+        showToast("Kind deed done — the village remembers.");
+        return { ...w, myTasks: [...w.myTasks, nearby.id], players: w.players.map((p) => p.id === myId ? { ...p, tasksDone: [...p.tasksDone, nearby.id] } : p) };
+      });
+      return;
+    }
     const socket = getSocket();
     if (nearby.kind === "clue") {
       sfx.interact();
@@ -265,7 +347,25 @@ export default function App() {
       sfx.interact();
       socket.emit(Events.CompleteTask, { taskId: nearby.id });
     }
-  }, [nearby]);
+  }, [nearby, localMode, myId, showToast]);
+
+  const completeTask = useCallback((taskId: string) => {
+    if (!localMode) {
+      getSocket().emit(Events.CompleteTask, { taskId });
+      return;
+    }
+    const current = worldRef.current;
+    const me = current?.players.find((player) => player.id === myId);
+    const task = current?.tasks.find((item) => item.id === taskId);
+    if (!current || current.phase !== "exploration" || !me || !task || current.myTasks.includes(taskId)) return;
+    if (Math.hypot(me.x - task.x, me.y - task.y) > WORLD.interactRadius + 30) {
+      showToast("Stand closer to the task before logging it as done.");
+      return;
+    }
+    sfx.task();
+    setWorld({ ...current, myTasks: [...current.myTasks, taskId], players: current.players.map((player) => player.id === myId ? { ...player, tasksDone: [...player.tasksDone, taskId] } : player) });
+    showToast("Kind deed done — the village remembers.");
+  }, [localMode, myId, showToast]);
 
   // Keyboard shortcut: E to interact, J/T/C/V to toggle panels.
   useEffect(() => {
@@ -273,6 +373,13 @@ export default function App() {
     const h = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.key === "Tab" && localMode && localHumans.length > 1) {
+        e.preventDefault();
+        const next = (localTurn + 1) % localHumans.length;
+        setLocalTurn(next);
+        setMyId(`local-human-${next}`);
+        showToast(`${localHumans[next].name}'s turn — pass the keyboard.`);
+      }
       if (e.key === "e" || e.key === "E") doInteract();
       if (e.key === "j" || e.key === "J") setPanel((p) => (p === "journal" ? null : "journal"));
       if (e.key === "t" || e.key === "T") setPanel((p) => (p === "tasks" ? null : "tasks"));
@@ -281,7 +388,7 @@ export default function App() {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [screen, doInteract]);
+  }, [screen, doInteract, localMode, localHumans, localTurn, showToast]);
 
   if (screen === "landing") {
     return (
@@ -292,7 +399,9 @@ export default function App() {
           avatar={avatar}
           setAvatar={setAvatar}
           onJoin={join}
-          joining={false}
+          onSolo={() => beginLocal([{ name: name.trim(), avatar }])}
+          onSmallGroup={beginLocal}
+          joining={joining}
           error={joinError}
           serverOk={serverOk}
           onlineCount={onlineCount}
@@ -306,7 +415,7 @@ export default function App() {
       <header className="hud-top">
         <div className="hud-title">
           <strong>Who Stole the Moon?</strong>
-          <ConnectionDot status={conn} />
+          {localMode ? <span className="local-badge">Local · no server</span> : <ConnectionDot status={conn} />}
         </div>
         <div className="hud-btns">
           <button
@@ -324,18 +433,17 @@ export default function App() {
           >
             Tasks
           </button>
-          <button
+          {!localMode && <button
             className={panel === "chat" ? "active" : ""}
             onClick={() => setPanel((p) => (p === "chat" ? null : "chat"))}
-          >
-            Talk
-          </button>
+          >Talk</button>}
           <button
             className={panel === "villagers" ? "active" : ""}
             onClick={() => setPanel((p) => (p === "villagers" ? null : "villagers"))}
           >
-            Villagers
+            {localMode ? "Ask Villagers" : "Villagers"}
           </button>
+          <button className={panel === "places" ? "active" : ""} onClick={() => setPanel((p) => p === "places" ? null : "places")}>Places</button>
           {world?.phase === "voting" && (
             <button
               className={panel === "vote" ? "active" : ""}
@@ -344,6 +452,9 @@ export default function App() {
               Vote
             </button>
           )}
+          {localMode && world?.phase === "exploration" && <button onClick={() => setWorld((w) => w ? { ...w, phase: "discussion" } : w)}>Finish Investigation</button>}
+          {localMode && world?.phase === "discussion" && <button onClick={() => setAccuseOpen(true)}>Make Accusation</button>}
+          {localMode && localHumans.length > 1 && <button onClick={() => { const next = (localTurn + 1) % localHumans.length; setLocalTurn(next); setMyId(`local-human-${next}`); showToast(`${localHumans[next].name}'s turn — pass the keyboard.`); }}>Pass Turn · {localHumans[(localTurn + 1) % localHumans.length].name}</button>}
           <button
             onClick={() => {
               const m = !muted;
@@ -357,10 +468,12 @@ export default function App() {
           </button>
           <button
             onClick={() => {
-              getSocket().disconnect();
+              if (!localMode) getSocket().disconnect();
               setScreen("landing");
               setWorld(null);
               setMyId("");
+              setLocalMode(false);
+              setAccuseOpen(false);
               setJoining(false);
             }}
           >
@@ -378,12 +491,12 @@ export default function App() {
         />
       )}
 
-      {world?.phase === "lobby" && (
+      {world?.phase === "lobby" && !localMode && (
         <div className="lobby-bar">
           <span>
-            {world.players.length} villager{world.players.length === 1 ? "" : "s"} gathered ·{" "}
-            {world.players.filter((p) => p.ready).length} ready
+            {world.players.filter((p) => p.connected).length} connected · target {world.targetPlayers} · {world.players.filter((p) => p.ready).length} ready
           </span>
+          {world.players.filter((p) => p.connected).length < world.targetPlayers && <span className="muted">Waiting for {world.targetPlayers - world.players.filter((p) => p.connected).length} more human{world.targetPlayers - world.players.filter((p) => p.connected).length === 1 ? "" : "s"}.</span>}
           {(() => {
             const me = world.players.find((p) => p.id === myId);
             return (
@@ -403,8 +516,8 @@ export default function App() {
               </>
             );
           })()}
-          <button className="join-btn small" onClick={() => getSocket().emit(Events.StartRound)}>
-            Begin the Night
+          <button className="join-btn small" onClick={() => getSocket().emit(Events.StartRound)} disabled={!world.players.find((p) => p.id === myId)?.isHost || world.players.filter((p) => p.connected).length < world.targetPlayers}>
+            {world.players.find((p) => p.id === myId)?.isHost ? `Begin with ${world.targetPlayers}` : "Waiting for host"}
           </button>
         </div>
       )}
@@ -433,21 +546,22 @@ export default function App() {
 
       <aside className={`drawer${panel ? " open" : ""}`} aria-hidden={!panel}>
         {world && panel === "journal" && <Journal world={world} />}
-        {world && panel === "tasks" && (
+          {world && panel === "tasks" && (
           <TaskPanel
             world={world}
-            onComplete={(id) => getSocket().emit(Events.CompleteTask, { taskId: id })}
+            onComplete={completeTask}
           />
         )}
-        {world && panel === "chat" && (
+        {world && panel === "chat" && !localMode && (
           <Discussion
             messages={world.messages}
             myId={myId}
             onSend={(text) => getSocket().emit(Events.SendMessage, { text })}
           />
         )}
-        {world && panel === "villagers" && <PlayerList world={world} myId={myId} />}
-        {world && panel === "vote" && (
+        {world && panel === "villagers" && (localMode ? <LocalWitnessPanel world={world} /> : <PlayerList world={world} myId={myId} />)}
+        {world && panel === "places" && <PlaceGuide onClose={() => setPanel(null)} />}
+        {world && panel === "vote" && !localMode && (
           <Voting world={world} myId={myId} onVote={(id) => getSocket().emit(Events.Vote, { targetId: id })} />
         )}
       </aside>
@@ -466,10 +580,13 @@ export default function App() {
         <div className="overlay">
           <Results
             world={world}
-            onPlayAgain={() => getSocket().emit(Events.PlayAgain)}
-            onLobby={() => getSocket().emit(Events.BackToLobby)}
+            onPlayAgain={() => localMode && localHumans.length ? beginLocal(localHumans) : getSocket().emit(Events.PlayAgain)}
+            onLobby={() => { if (localMode) { setScreen("landing"); setWorld(null); setLocalMode(false); setPanel(null); setAccuseOpen(false); setMyId(""); myIdRef.current = ""; } else getSocket().emit(Events.BackToLobby); }}
           />
         </div>
+      )}
+      {localMode && accuseOpen && world && world.phase === "discussion" && (
+        <div className="overlay"><div className="panel accusation"><h2>Who took the moon?</h2><p>Choose the villager your evidence points to.</p><ul className="vote-list">{world.players.filter((p) => !p.connected).map((p) => <li key={p.id}><span>{p.name}</span><button className="small-btn" onClick={() => { if (!localScenario) return; setWorld((w) => w ? localResult(w, localCulprit, p.id, localScenario) : w); setAccuseOpen(false); }}>Accuse</button></li>)}</ul><button className="ghost-btn" onClick={() => setAccuseOpen(false)}>Keep investigating</button></div></div>
       )}
     </div>
   );

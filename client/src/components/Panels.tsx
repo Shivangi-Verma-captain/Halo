@@ -18,6 +18,31 @@ export function ConnectionDot({ status }: { status: string }) {
   );
 }
 
+export function PlaceGuide({ onClose }: { onClose: () => void }) {
+  const base = import.meta.env.BASE_URL;
+  const places = [
+    { title: "Village Square", image: "village-square.webp", text: "Return to the lantern-lit fountain at the heart of the village." },
+    { title: "Moon Observatory", image: "moon-observatory.webp", text: "Follow the star chart clues to the telescope on the hill." },
+    { title: "Enchanted Forest", image: "forest-shrine.webp", text: "The trail beyond the cottages holds signs of a hurried passage." },
+  ];
+  return <div className="panel place-guide"><div className="place-guide-head"><div><h2>Places around the village</h2><p className="muted">Walk the Phaser map to reach each landmark. These scenes are location previews; clues still need to be found in the world.</p></div><button className="small-btn" onClick={onClose}>Close</button></div><div className="place-grid">{places.map((place) => <article className="place-card" key={place.title}><img src={`${base}assets/scenes/${place.image}`} alt={`${place.title} storybook scene`} /><div><h3>{place.title}</h3><p>{place.text}</p></div></article>)}</div></div>;
+}
+
+export function LocalWitnessPanel({ world }: { world: ClientWorldState }) {
+  const found = new Set(world.myClues.map((clue) => clue.id));
+  const witnesses = [
+    { clue: "star-chart", name: "Pip the Baker", text: "I saw the observatory chart glowing late into the night. Someone had marked the moon's path more than once." },
+    { clue: "violet-fabric", name: "Fern the Gardener", text: "A violet thread was caught on the garden thorns. It looked freshly torn." },
+    { clue: "lantern-oil", name: "Bell the Clockkeeper", text: "The clocktower lamp burned much brighter than usual around midnight." },
+    { clue: "torn-letter", name: "Wren the Librarian", text: "Someone asked whether the night could be borrowed. They did not take kindly to my answer." },
+    { clue: "footprint", name: "Moss the Caretaker", text: "There was moon-dust by the fountain after midnight. I heard hurried steps heading uphill." },
+    { clue: "pocket-watch", name: "Tock the Clockmaker", text: "A watch stopped at midnight. Its owner was close to the tower lamp." },
+    { clue: "muddy-boot", name: "Rue the Florist", text: "The garden mud was dragged back toward the square in a hurry." },
+    { clue: "moon-crumb", name: "Lumen the Moth Keeper", text: "I found a tiny piece of moonlight beside the fountain. It was still warm." },
+  ].filter((witness) => found.has(witness.clue));
+  return <div className="panel"><h3>Ask the villagers</h3>{witnesses.length ? <ul className="witness-list">{witnesses.map((w) => <li key={w.clue}><strong>{w.name}</strong><p>“{w.text}”</p></li>)}</ul> : <p className="muted">The villagers are willing to talk, but they need something concrete to react to. Find a clue first.</p>}</div>;
+}
+
 export function PhaseBanner({
   phase,
   endsAt,

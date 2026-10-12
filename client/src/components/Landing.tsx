@@ -1,11 +1,15 @@
 import { AVATARS, type AvatarId } from "@moon/shared";
+import { useState } from "react";
+import type { LocalHuman } from "../game/localMystery";
 
 interface Props {
   name: string;
   setName: (v: string) => void;
   avatar: AvatarId;
   setAvatar: (v: AvatarId) => void;
-  onJoin: () => void;
+  onJoin: (targetPlayers: number) => void;
+  onSolo: () => void;
+  onSmallGroup: (humans: LocalHuman[]) => void;
   joining: boolean;
   error: string | null;
   serverOk: boolean | null;
@@ -18,12 +22,23 @@ export default function Landing({
   avatar,
   setAvatar,
   onJoin,
+  onSolo,
+  onSmallGroup,
   joining,
   error,
   serverOk,
   onlineCount,
 }: Props) {
+  const [mode, setMode] = useState<"solo" | "small" | "classic">("solo");
+  const [groupSize, setGroupSize] = useState(2);
+  const [groupNames, setGroupNames] = useState(["", ""]);
+  const [classicTarget, setClassicTarget] = useState(5);
   const nameValid = name.trim().length >= 2 && name.trim().length <= 16;
+  const submit = () => {
+    if (mode === "solo") onSolo();
+    else if (mode === "small") onSmallGroup(groupNames.slice(0, groupSize).map((n, i) => ({ name: i === 0 ? name.trim() : n.trim(), avatar: i === 0 ? avatar : AVATARS.filter((item) => item.id !== avatar)[i - 1].id })));
+    else onJoin(classicTarget);
+  };
 
   return (
     <div className="landing">
@@ -40,14 +55,23 @@ export default function Landing({
         <br />
         THE MOON?
       </h1>
-      <p className="subtitle">
-        The moon has vanished from the twilight sky. Wander the village, gather
-        clues, lend a paw with small tasks — then gather round and name the culprit.
-      </p>
+      <p className="subtitle">The moon has vanished from the twilight sky. Choose how your village will investigate.</p>
 
       <div className="landing-card">
+        <p className="field-label">Choose your game</p>
+        <div className="mode-grid" role="radiogroup" aria-label="Game mode">
+          <button className={`mode-card${mode === "solo" ? " selected" : ""}`} role="radio" aria-checked={mode === "solo"} onClick={() => setMode("solo")}>
+            <strong>Solo Mystery</strong><span>1 human · 7 AI villagers</span><small>Investigate offline and accuse an AI suspect.</small>
+          </button>
+          <button className={`mode-card${mode === "small" ? " selected" : ""}`} role="radio" aria-checked={mode === "small"} onClick={() => setMode("small")}>
+            <strong>Small Group</strong><span>2–4 local humans · AI fills to 8</span><small>Pass the keyboard between investigators. No server required.</small>
+          </button>
+          <button className={`mode-card${mode === "classic" ? " selected" : ""}`} role="radio" aria-checked={mode === "classic"} onClick={() => setMode("classic")}>
+            <strong>Classic Multiplayer</strong><span>5–8 connected humans</span><small>Online room, hidden human Moon Thief, server required.</small>
+          </button>
+        </div>
         <label className="field-label" htmlFor="name-input">
-          Your villager name
+          {mode === "small" ? "First investigator's name" : "Your villager name"}
         </label>
         <input
           id="name-input"
@@ -57,7 +81,7 @@ export default function Landing({
           placeholder="e.g. Wren"
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && nameValid && !joining) onJoin();
+            if (e.key === "Enter" && nameValid && !joining) submit();
           }}
           autoComplete="off"
         />
@@ -89,12 +113,32 @@ export default function Landing({
           ))}
         </div>
 
+        {mode === "small" && (
+          <div className="group-setup">
+            <label className="field-label" htmlFor="group-size">Local human investigators</label>
+            <select id="group-size" value={groupSize} onChange={(e) => { const n = Number(e.target.value); setGroupSize(n); setGroupNames((names) => Array.from({ length: n }, (_, i) => names[i] ?? "")); }}>
+              {[2, 3, 4].map((n) => <option key={n} value={n}>{n} investigators</option>)}
+            </select>
+            {Array.from({ length: groupSize - 1 }, (_, i) => <label className="field-label" key={i}>Investigator {i + 2}<input className="name-input" value={groupNames[i + 1] ?? ""} maxLength={16} placeholder={`Name ${i + 2}`} onChange={(e) => setGroupNames((names) => { const next = [...names]; next[i + 1] = e.target.value; return next; })} /></label>)}
+            <p className="field-hint">During play, press Tab to pass control to the next named investigator.</p>
+          </div>
+        )}
+        {mode === "classic" && (
+          <div className="group-setup">
+            <label className="field-label" htmlFor="classic-count">Human players to start</label>
+            <select id="classic-count" value={classicTarget} onChange={(e) => setClassicTarget(Number(e.target.value))}>
+              {[5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} connected humans</option>)}
+            </select>
+            <p className="field-hint">The server waits for that many real people; the first player is host, and one human is the hidden thief.</p>
+          </div>
+        )}
+
         <button
           className="join-btn"
-          onClick={onJoin}
-          disabled={!nameValid || joining || serverOk === false}
+          onClick={submit}
+          disabled={mode === "solo" ? !nameValid : mode === "small" ? !nameValid || groupNames.slice(1, groupSize).some((n) => n.trim().length < 2) : !nameValid || joining || serverOk === false}
         >
-          {joining ? "Knocking on the village gate…" : "Enter the Village"}
+          {mode === "solo" ? "Begin Mystery" : mode === "small" ? "Create Local Group" : joining ? "Knocking on the village gate…" : "Join Classic Lobby"}
         </button>
 
         {error && (
@@ -102,7 +146,7 @@ export default function Landing({
             {error}
           </p>
         )}
-        {serverOk === false && (
+          {mode === "classic" && serverOk === false && (
           <p className="field-hint error" role="alert">
             The village server is unreachable. Is it running on{" "}
             {import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001"}?

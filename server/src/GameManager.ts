@@ -31,6 +31,8 @@ let messageSeq = 0;
 
 export class GameManager {
   players = new Map<string, ServerPlayer>(); // socketId -> player
+  hostId: string | null = null;
+  targetPlayers = 5;
   /** persistent name reservations: lowercase name -> socketId (cleared on disconnect) */
   phase: Phase = "lobby";
   phaseEndsAt: number | null = null;
@@ -95,6 +97,7 @@ export class GameManager {
     socketId: string,
     desiredName: string,
     avatar: AvatarId,
+    targetPlayers = 5,
   ): { player: ServerPlayer; nameAdjusted: boolean } {
     if (this.players.has(socketId)) {
       const existing = this.players.get(socketId)!;
@@ -124,6 +127,10 @@ export class GameManager {
       voteFor: null,
     };
     this.players.set(socketId, player);
+    if (!this.hostId) {
+      this.hostId = socketId;
+      this.targetPlayers = targetPlayers;
+    }
     this.emit();
     return { player, nameAdjusted: name !== normalizeName(desiredName) };
   }
@@ -139,6 +146,7 @@ export class GameManager {
     old.connected = true;
     old.lastSeen = Date.now();
     this.players.set(newSocketId, old);
+    if (this.hostId === oldSocketId) this.hostId = newSocketId;
     if (this.culpritId === oldSocketId) this.culpritId = newSocketId;
     // remap cluesTaken / votes referencing old id
     for (const [k, v] of this.cluesTaken) {
@@ -158,6 +166,7 @@ export class GameManager {
     // must not remain permanently stuck.) Played clues/votes stay for
     // round integrity, but the seat frees up.
     this.players.delete(socketId);
+    if (this.hostId === socketId) this.hostId = this.players.keys().next().value ?? null;
     // If lobby empties entirely, reset to fresh lobby state.
     if (this.players.size === 0) {
       this.resetToLobby();
@@ -171,6 +180,7 @@ export class GameManager {
     for (const [id, p] of this.players) {
       if (!p.connected && now - p.lastSeen > timeoutMs) {
         this.players.delete(id);
+        if (this.hostId === id) this.hostId = this.players.keys().next().value ?? null;
         changed = true;
       }
     }
@@ -210,9 +220,15 @@ export class GameManager {
 
   canStart(): { ok: boolean; reason?: string } {
     if (this.phase !== "lobby") return { ok: false, reason: "Round already in progress." };
-    if (this.players.size < MIN_PLAYERS_TO_START)
-      return { ok: false, reason: `Need at least ${MIN_PLAYERS_TO_START} villagers to begin.` };
+    if (this.players.size < this.targetPlayers)
+      return { ok: false, reason: `Waiting for ${this.targetPlayers - this.players.size} more connected human player${this.targetPlayers - this.players.size === 1 ? "" : "s"}.` };
     return { ok: true };
+  }
+
+  canStartAs(socketId: string): { ok: boolean; reason?: string } {
+    if (!this.players.has(socketId)) return { ok: false, reason: "Join the room before starting." };
+    if (this.hostId !== socketId) return { ok: false, reason: "Only the room host can begin the night." };
+    return this.canStart();
   }
 
   // -- round lifecycle --------------------------------------------------------
@@ -430,6 +446,7 @@ export class GameManager {
       x: Math.round(p.x),
       y: Math.round(p.y),
       connected: p.connected,
+      isHost: p.socketId === this.hostId,
       ready: p.ready,
       cluesFound: [...p.cluesFound],
       tasksDone: [...p.tasksDone],
@@ -446,6 +463,7 @@ export class GameManager {
     }
     return {
       phase: this.phase,
+      targetPlayers: this.targetPlayers,
       phaseEndsAt: this.phaseEndsAt,
       players,
       cluesTaken: Object.fromEntries(this.cluesTaken),

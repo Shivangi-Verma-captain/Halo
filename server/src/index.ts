@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { loadConfig } from "./config.js";
@@ -8,6 +9,7 @@ import { attachSockets } from "./socketHandlers.js";
 
 const config = loadConfig();
 const app = express();
+app.use(cors({ origin: config.corsOrigins, credentials: true }));
 const game = new GameManager(config.fixedSeed);
 
 app.get("/health", (_req, res) => {

@@ -37,6 +37,35 @@ describe("GameManager multiplayer core", () => {
     expect(() => g.join("extra", "New", "moth")).toThrow(/full/i);
   });
 
+  it("requires five connected humans and only the host may start classic play", () => {
+    const ids: string[] = [];
+    const avatars = ["moth", "fox", "owl", "cat", "frog"] as const;
+    for (let i = 0; i < 4; i++) {
+      ids.push(`player-${i}`);
+      game.join(`player-${i}`, `Player ${i}`, avatars[i]);
+    }
+    expect(game.canStartAs(ids[0]).ok).toBe(false);
+    ids.push("player-4");
+    game.join("player-4", "Player 4", avatars[4]);
+    expect(game.canStartAs(ids[0]).ok).toBe(true);
+    expect(game.canStartAs(ids[1])).toEqual({ ok: false, reason: "Only the room host can begin the night." });
+    expect(game.stateFor(ids[1]).players.find((p) => p.id === ids[0])?.isHost).toBe(true);
+  });
+
+  it("honors the host's selected human count up to all eight seats", () => {
+    const ids: string[] = [];
+    const avatars = ["moth", "fox", "owl", "cat", "frog", "hare", "badger", "wren"] as const;
+    for (let i = 0; i < 7; i++) {
+      ids.push(`target-${i}`);
+      game.join(`target-${i}`, `Target ${i}`, avatars[i], i === 0 ? 8 : 5);
+    }
+    expect(game.targetPlayers).toBe(8);
+    expect(game.canStartAs(ids[0]).ok).toBe(false);
+    ids.push("target-7");
+    game.join("target-7", "Target 7", avatars[7]);
+    expect(game.canStartAs(ids[0]).ok).toBe(true);
+  });
+
   it("removes players on leave (no ghosts) and resets when empty", () => {
     game.join("a", "Wren", "moth");
     game.leave("a");

@@ -7,6 +7,7 @@ export interface RemotePlayer {
   avatar: AvatarId;
   x: number;
   y: number;
+  isAi?: boolean;
 }
 
 export interface Interactable {
@@ -24,6 +25,10 @@ interface AvatarSprites {
   label: Phaser.GameObjects.Text;
   targetX: number;
   targetY: number;
+  isAi: boolean;
+  roamX: number;
+  roamY: number;
+  nextRoamAt: number;
 }
 
 function avatarColor(id: AvatarId): number {
@@ -75,6 +80,7 @@ export class VillageScene extends Phaser.Scene {
       if (!existing) {
         this.createAvatar(p);
       } else {
+        existing.isAi = Boolean(p.isAi);
         existing.targetX = p.x;
         existing.targetY = p.y;
         if (p.id !== this.meId) {
@@ -115,6 +121,7 @@ export class VillageScene extends Phaser.Scene {
 
     this.drawGround();
     this.drawBuildings();
+    this.drawForestPath();
     this.drawFireflies();
 
     // Input
@@ -167,6 +174,8 @@ export class VillageScene extends Phaser.Scene {
     g.lineTo(200, 600);
     g.moveTo(800, 600);
     g.lineTo(1350, 900);
+    g.moveTo(800, 600);
+    g.lineTo(1340, 620);
     g.strokePath();
     // Hand-laid cobbles make the routes and central plaza read as a lived-in place.
     g.lineStyle(2, 0x8790a9, 0.18);
@@ -348,6 +357,34 @@ export class VillageScene extends Phaser.Scene {
     }
   }
 
+  private drawForestPath() {
+    const g = this.add.graphics();
+    // A blue-green wooded edge and an old shrine mark the path beyond the east cottages.
+    const tree = (x: number, y: number, crown: number) => {
+      g.fillStyle(0x17182f, 0.34).fillEllipse(x + 18, y + 68, 72, 24);
+      g.fillStyle(0x5a463f, 1).fillRoundedRect(x + 8, y + 34, 20, 48, 7);
+      g.fillStyle(crown, 1).fillCircle(x + 18, y + 18, 31);
+      g.fillStyle(0x283f48, 1).fillCircle(x, y + 29, 20).fillCircle(x + 37, y + 32, 20);
+      g.fillStyle(0x91b49b, 0.72).fillCircle(x + 8, y + 11, 3).fillCircle(x + 28, y + 28, 2.5);
+    };
+    tree(1290, 500, 0x34534f);
+    tree(1500, 560, 0x3b5b54);
+    tree(1300, 720, 0x304c4a);
+    tree(1480, 720, 0x3c5c52);
+    // Mossy stone arch: the silhouette is a landmark, while evidence remains in the world markers.
+    g.fillStyle(0x17182f, 0.28).fillEllipse(1418, 729, 140, 24);
+    g.fillStyle(0x68747e, 1).fillRoundedRect(1380, 650, 24, 76, 8).fillRoundedRect(1432, 650, 24, 76, 8);
+    g.fillStyle(0x78817e, 1);
+    g.fillRoundedRect(1376, 630, 84, 28, 12);
+    g.fillStyle(0x2d4650, 1).fillRect(1404, 658, 28, 68);
+    g.lineStyle(5, 0x899a81, 0.86).strokeRoundedRect(1380, 634, 76, 92, 18);
+    g.fillStyle(0x80c9be, 0.85).fillCircle(1360, 687, 4).fillCircle(1472, 674, 3).fillCircle(1368, 748, 2.5);
+    this.add.text(1418, 770, "Forest Path · Shrine", {
+      fontFamily: "Karla, sans-serif", fontSize: "13px", color: "#cfd3ec",
+      backgroundColor: "rgba(26,27,58,0.72)", padding: { x: 7, y: 3 },
+    }).setOrigin(0.5).setAlpha(0.9);
+  }
+
   private createAvatar(p: RemotePlayer) {
     const color = avatarColor(p.avatar);
     const isMe = p.id === this.meId;
@@ -416,7 +453,11 @@ export class VillageScene extends Phaser.Scene {
       container.add(ring);
       this.cameras.main.startFollow(container, true, 0.08, 0.08);
     }
-    this.avatars.set(p.id, { container, body, label, targetX: p.x, targetY: p.y });
+    this.avatars.set(p.id, {
+      container, body, label, targetX: p.x, targetY: p.y,
+      isAi: Boolean(p.isAi), roamX: p.x, roamY: p.y,
+      nextRoamAt: performance.now() + Phaser.Math.Between(300, 1800),
+    });
   }
 
   private refreshMarkers() {
@@ -492,6 +533,31 @@ export class VillageScene extends Phaser.Scene {
     // Smooth remote players (lerp toward last known target).
     for (const [id, spr] of this.avatars) {
       if (id === this.meId) continue;
+      if (spr.isAi) {
+        const now = performance.now();
+        let dx = spr.roamX - spr.container.x;
+        let dy = spr.roamY - spr.container.y;
+        if (now >= spr.nextRoamAt || Math.hypot(dx, dy) < 5) {
+          for (let attempt = 0; attempt < 6; attempt++) {
+            const gx = Phaser.Math.Clamp(spr.container.x + Phaser.Math.Between(-90, 90), 100, WORLD.width - 100);
+            const gy = Phaser.Math.Clamp(spr.container.y + Phaser.Math.Between(-70, 70), 120, WORLD.height - 100);
+            if (!this.collides(gx, gy)) { spr.roamX = gx; spr.roamY = gy; break; }
+          }
+          spr.nextRoamAt = now + Phaser.Math.Between(2200, 5200);
+          dx = spr.roamX - spr.container.x;
+          dy = spr.roamY - spr.container.y;
+        }
+        const distance = Math.hypot(dx, dy);
+        if (distance > 3) {
+          const step = Math.min(distance, 26 * dt);
+          const nx = spr.container.x + (dx / distance) * step;
+          const ny = spr.container.y + (dy / distance) * step;
+          if (!this.collides(nx, spr.container.y)) spr.container.x = nx;
+          if (!this.collides(spr.container.x, ny)) spr.container.y = ny;
+          if (this.collides(nx, spr.container.y) || this.collides(spr.container.x, ny)) spr.nextRoamAt = now;
+        }
+        continue;
+      }
       const cx = spr.container.x;
       const cy = spr.container.y;
       const dx = spr.targetX - cx;

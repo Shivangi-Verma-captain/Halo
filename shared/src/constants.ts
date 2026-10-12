@@ -1,6 +1,6 @@
 // Shared constants — single source of truth for client + server.
 export const MAX_PLAYERS = 8;
-export const MIN_PLAYERS_TO_START = 3;
+export const MIN_PLAYERS_TO_START = 5;
 
 export const WORLD = {
   width: 1600,
@@ -63,6 +63,11 @@ export const SOLIDS: SolidRect[] = [
   { id: "library", x: 150, y: 800, w: 260, h: 180 },
   { id: "clocktower", x: 700, y: 120, w: 200, h: 160 },
   { id: "observatory", x: 1180, y: 800, w: 280, h: 200 },
+  // Forest Path shrine and trees (shared with Phaser collision boundaries).
+  { id: "forest-tree-west", x: 1270, y: 520, w: 56, h: 72 },
+  { id: "forest-shrine", x: 1380, y: 620, w: 76, h: 104 },
+  { id: "forest-tree-east", x: 1490, y: 580, w: 58, h: 76 },
+  { id: "forest-tree-south", x: 1280, y: 720, w: 64, h: 80 },
   // Garden beds (low, but solid for simplicity)
   { id: "garden-bed-1", x: 480, y: 850, w: 160, h: 90 },
   { id: "garden-bed-2", x: 660, y: 850, w: 160, h: 90 },

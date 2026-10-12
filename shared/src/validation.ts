@@ -13,6 +13,7 @@ export const NameSchema = z
 export const JoinSchema = z.object({
   name: NameSchema,
   avatar: z.enum(avatarIds),
+  targetPlayers: z.number().int().min(5).max(8).optional(),
 });
 
 export const MoveSchema = z.object({

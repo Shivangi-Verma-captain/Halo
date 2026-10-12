@@ -47,6 +47,7 @@ export function attachSockets(io: Server, game: GameManager) {
           socket.id,
           parsed.data.name,
           parsed.data.avatar as never,
+          parsed.data.targetPlayers,
         );
         joined = true;
         socket.emit(Events.Joined, {
@@ -98,6 +99,11 @@ export function attachSockets(io: Server, game: GameManager) {
 
     socket.on(Events.StartRound, () => {
       if (!joined) return;
+      const gate = game.canStartAs(socket.id);
+      if (!gate.ok) {
+        socket.emit(Events.Error, { message: gate.reason });
+        return;
+      }
       if (!actionLimiter.check(`start-${socket.id}`)) return;
       const res = game.startRound();
       if (!res.ok) socket.emit(Events.Error, { message: res.reason });
@@ -158,6 +164,10 @@ export function attachSockets(io: Server, game: GameManager) {
 
     socket.on(Events.PlayAgain, () => {
       if (!joined) return;
+      if (game.hostId !== socket.id) {
+        socket.emit(Events.Error, { message: "Only the room host can start another night." });
+        return;
+      }
       const res = game.playAgain();
       if (!res.ok) {
         // Fall back: if round can't restart (e.g. players left), go lobby

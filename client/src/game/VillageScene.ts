@@ -168,6 +168,18 @@ export class VillageScene extends Phaser.Scene {
     g.moveTo(800, 600);
     g.lineTo(1350, 900);
     g.strokePath();
+    // Hand-laid cobbles make the routes and central plaza read as a lived-in place.
+    g.lineStyle(2, 0x8790a9, 0.18);
+    for (const [x, y, radius] of [[800, 600, 194], [800, 600, 147]] as const) {
+      g.strokeCircle(x, y, radius);
+    }
+    g.fillStyle(0x8990a4, 0.22);
+    for (let i = 0; i < 76; i++) {
+      const angle = (i / 76) * Math.PI * 2;
+      const x = 800 + Math.cos(angle) * (160 + (i % 3) * 11);
+      const y = 600 + Math.sin(angle) * (160 + (i % 3) * 11);
+      g.fillRoundedRect(x - 8, y - 3, 16, 6, 3);
+    }
     // Grass tufts (deterministic pseudo-random)
     let seed = 7;
     const rnd = () => {
@@ -179,6 +191,15 @@ export class VillageScene extends Phaser.Scene {
       const x = rnd() * WORLD.width;
       const y = rnd() * WORLD.height;
       g.fillTriangle(x, y, x + 9, y, x + 4, y - 12);
+    }
+    // Flower clusters and tiny stepping stones add scale without crowding paths.
+    for (const [x, y] of [[470, 472], [500, 490], [1120, 720], [1180, 758], [950, 980], [350, 700]]) {
+      g.fillStyle(0x587a69, 1);
+      g.fillEllipse(x, y, 26, 12);
+      g.fillStyle(0xe88ca0, 0.88);
+      g.fillCircle(x - 5, y - 4, 3);
+      g.fillStyle(0xf2c572, 0.92);
+      g.fillCircle(x + 4, y - 7, 2.5);
     }
     // Stars in the "sky vignette" border
     g.fillStyle(0xf7ead7, 0.8);
@@ -193,14 +214,39 @@ export class VillageScene extends Phaser.Scene {
     const g = this.add.graphics();
 
     const cottage = (x: number, y: number, w: number, h: number, wall: number, roof: number) => {
+      g.fillStyle(0x17182f, 0.28);
+      g.fillEllipse(x + w / 2, y + h - 2, w * 0.7, 22);
       g.fillStyle(wall, 1);
       g.fillRoundedRect(x, y + 40, w, h - 40, 6);
+      g.lineStyle(2, 0xf7ead7, 0.14);
+      g.strokeRoundedRect(x + 4, y + 44, w - 8, h - 48, 5);
       g.fillStyle(roof, 1);
       g.fillTriangle(x - 14, y + 46, x + w / 2, y - 34, x + w + 14, y + 46);
+      g.lineStyle(3, 0xf7ead7, 0.12);
+      for (let row = 0; row < 4; row++) {
+        const yy = y + 4 + row * 11;
+        const half = (w / 2 + 14) * (1 - (yy - (y - 34)) / 80);
+        g.lineBetween(x + w / 2 - half, yy, x + w / 2 + half, yy);
+      }
       // Warm windows
       g.fillStyle(0xf2c572, 1);
       g.fillRoundedRect(x + 24, y + 78, 34, 30, 4);
       g.fillRoundedRect(x + w - 58, y + 78, 34, 30, 4);
+      g.lineStyle(2, 0x6b5662, 0.8);
+      g.lineBetween(x + 41, y + 79, x + 41, y + 107);
+      g.lineBetween(x + 25, y + 93, x + 57, y + 93);
+      g.lineBetween(x + w - 41, y + 79, x + w - 41, y + 107);
+      g.lineBetween(x + w - 57, y + 93, x + w - 25, y + 93);
+      g.fillStyle(0x3f4d57, 1);
+      g.fillRoundedRect(x + w / 2 - 19, y + h - 65, 38, 65, 6);
+      g.fillStyle(0xf2c572, 1);
+      g.fillCircle(x + w / 2 + 10, y + h - 32, 2.5);
+      g.fillStyle(0x586d5c, 1);
+      g.fillRoundedRect(x + 13, y + h - 27, 18, 12, 4);
+      g.fillRoundedRect(x + w - 31, y + h - 27, 18, 12, 4);
+      g.fillStyle(0xe88ca0, 1);
+      g.fillCircle(x + 20, y + h - 31, 4);
+      g.fillCircle(x + w - 23, y + h - 31, 4);
       // Window glow halo
       g.fillStyle(0xf2c572, 0.12);
       g.fillCircle(x + 41, y + 93, 34);
@@ -216,6 +262,8 @@ export class VillageScene extends Phaser.Scene {
     // Clock tower
     g.fillStyle(0x6b6486, 1);
     g.fillRect(700, 120, 200, 160);
+    g.fillStyle(0x17182f, 0.3);
+    g.fillEllipse(800, 286, 235, 30);
     g.fillStyle(0x4a4a68, 1);
     g.fillTriangle(688, 122, 800, 30, 912, 122);
     g.fillStyle(0xf7ead7, 1);
@@ -225,6 +273,13 @@ export class VillageScene extends Phaser.Scene {
     g.fillStyle(0xf7ead7, 1);
     g.fillRect(798, 168, 4, 24);
     g.fillRect(798, 188, 20, 4);
+    g.lineStyle(2, 0xf7ead7, 0.6);
+    g.strokeCircle(800, 190, 38);
+    g.fillStyle(0xf2c572, 1);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      g.fillCircle(800 + Math.cos(a) * 45, 190 + Math.sin(a) * 45, 2);
+    }
     // Observatory dome
     g.fillStyle(0x5b6b8c, 1);
     g.fillRect(1180, 880, 280, 120);
@@ -237,6 +292,8 @@ export class VillageScene extends Phaser.Scene {
     // Fountain
     g.fillStyle(0x7d90c9, 1);
     g.fillCircle(800, 600, 60);
+    g.fillStyle(0x17182f, 0.24);
+    g.fillEllipse(800, 660, 150, 25);
     g.fillStyle(0xa8c3e8, 1);
     g.fillCircle(800, 600, 44);
     g.fillStyle(0x8f7bd8, 1);
@@ -294,6 +351,31 @@ export class VillageScene extends Phaser.Scene {
   private createAvatar(p: RemotePlayer) {
     const color = avatarColor(p.avatar);
     const isMe = p.id === this.meId;
+    // Species silhouettes stay legible at play scale while sharing one ink and light treatment.
+    const ears = this.add.graphics();
+    const earColor = color;
+    ears.fillStyle(earColor, 1);
+    ears.lineStyle(2, 0xf7ead7, 0.92);
+    if (p.avatar === "hare" || p.avatar === "cat" || p.avatar === "fox") {
+      const long = p.avatar === "hare";
+      ears.fillTriangle(-12, -22, -10, long ? -54 : -40, -1, -25);
+      ears.fillTriangle(12, -22, 10, long ? -54 : -40, 1, -25);
+      ears.strokeTriangle(-12, -22, -10, long ? -54 : -40, -1, -25);
+      ears.strokeTriangle(12, -22, 10, long ? -54 : -40, 1, -25);
+      ears.fillStyle(p.avatar === "fox" ? 0xf2c572 : 0xe88ca0, 0.85);
+      ears.fillTriangle(-9, -25, -10, long ? -47 : -35, -5, -27);
+      ears.fillTriangle(9, -25, 10, long ? -47 : -35, 5, -27);
+    } else if (p.avatar === "owl" || p.avatar === "moth") {
+      ears.fillTriangle(-15, -18, -17, -38, -2, -24);
+      ears.fillTriangle(15, -18, 17, -38, 2, -24);
+      ears.strokeTriangle(-15, -18, -17, -38, -2, -24);
+      ears.strokeTriangle(15, -18, 17, -38, 2, -24);
+    } else {
+      ears.fillEllipse(-12, -24, 13, 15);
+      ears.fillEllipse(12, -24, 13, 15);
+      ears.strokeEllipse(-12, -24, 13, 15);
+      ears.strokeEllipse(12, -24, 13, 15);
+    }
     const body = this.add.circle(0, -6, 17, color, 1);
     body.setStrokeStyle(3, 0xf7ead7, 1);
     // Little hood triangle on top for storybook charm
@@ -301,6 +383,20 @@ export class VillageScene extends Phaser.Scene {
     hood.setStrokeStyle(2, 0xf7ead7, 0.9);
     const face = this.add.circle(-5.5, -8, 2.2, 0x1a1b3a, 1);
     const face2 = this.add.circle(5.5, -8, 2.2, 0x1a1b3a, 1);
+    // Small species marks: moth antennae, owl brows, frog eye bumps, and badger blaze.
+    const marks = this.add.graphics();
+    if (p.avatar === "moth") {
+      marks.lineStyle(2, 0xf2c572, 1).lineBetween(-4, -20, -9, -30).lineBetween(4, -20, 9, -30);
+      marks.fillStyle(0xf2c572, 1).fillCircle(-9, -30, 2.5).fillCircle(9, -30, 2.5);
+    } else if (p.avatar === "owl") {
+      marks.fillStyle(0xf2c572, 1).fillTriangle(-3, -6, 3, -6, 0, -1);
+      marks.lineStyle(2, 0xe1cba4, 1).lineBetween(-11, -14, -4, -15).lineBetween(4, -15, 11, -14);
+    } else if (p.avatar === "frog") {
+      marks.fillStyle(0x8fd6b4, 1).fillCircle(-9, -23, 6).fillCircle(9, -23, 6);
+      marks.fillStyle(0x1a1b3a, 1).fillCircle(-9, -23, 2).fillCircle(9, -23, 2);
+    } else if (p.avatar === "badger") {
+      marks.fillStyle(0xf7ead7, 0.9).fillTriangle(-4, -19, 4, -19, 0, -2);
+    }
     const label = this.add
       .text(0, -52, p.name, {
         fontFamily: "Karla, sans-serif",
@@ -312,7 +408,7 @@ export class VillageScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     // Culprit sees nothing special here — roles are never rendered.
-    const container = this.add.container(p.x, p.y, [hood, body, face, face2, label]);
+    const container = this.add.container(p.x, p.y, [ears, hood, body, marks, face, face2, label]);
     container.setDepth(10);
     if (isMe) {
       const ring = this.add.circle(0, -6, 23, 0xf2c572, 0);

@@ -7,7 +7,7 @@ test.setTimeout(180_000);
 async function join(page: Page, name: string) {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.getByLabel(/villager name/i).fill(name);
-  await page.getByRole("button", { name: /join village/i }).click();
+  await page.getByRole("button", { name: /enter the village|join village/i }).click();
 }
 
 test("two villagers see each other and movement syncs", async ({ browser }) => {
@@ -23,7 +23,7 @@ test("two villagers see each other and movement syncs", async ({ browser }) => {
   }
 
   await a.getByLabel(/villager name/i).fill("WrenA");
-  await a.getByRole("button", { name: /join village/i }).click();
+  await a.getByRole("button", { name: /enter the village|join village/i }).click();
   await join(b, "WrenB");
 
   // Both HUDs show 2 villagers (socket state synced through the server)

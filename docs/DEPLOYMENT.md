@@ -17,9 +17,21 @@ Socket.IO server must run as a persistent process.
 | Var | Required | Purpose |
 |---|---|---|
 | `VITE_SERVER_URL` | **yes (prod)** | Backend URL the browser connects to, e.g. `https://moon-server.example.com` |
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_DATABASE_URL`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID` | no | Optional overrides for the supplied Firebase Web App config; Analytics initializes independently |
 
 Never hardcode `localhost` for production. Never put secrets in `VITE_*` vars
 (they ship in the browser bundle).
+
+## Firebase Analytics
+`client/src/firebase.ts` initializes the supplied Firebase Web App config and
+loads the modular Firebase Analytics SDK from Google's hosted browser modules.
+Analytics is optional and failure-isolated; the game does not wait for it.
+The existing Socket.IO server remains the only multiplayer backend. The supplied
+Firebase Realtime Database URL is retained as configuration only: no database
+client or public-write rule is enabled. Firebase web configuration and its API
+key are browser-visible identifiers, not service-account credentials. Add
+Firebase-side API restrictions and consent handling appropriate to the deployed
+site before using Analytics in a public release.
 
 ## Local development
 ```bash

@@ -9,6 +9,7 @@ import {
 } from "@moon/shared";
 import { getSocket } from "./socket";
 import { setMuted, isMuted as getMuted, sfx } from "./sound";
+import { initializeFirebaseAnalytics } from "./firebase";
 import PhaserMount from "./game/PhaserMount";
 import Landing from "./components/Landing";
 import {
@@ -42,6 +43,10 @@ export default function App() {
   const [muted, setM] = useState(getMuted());
   const worldRef = useRef<ClientWorldState | null>(null);
   worldRef.current = world;
+
+  useEffect(() => {
+    void initializeFirebaseAnalytics();
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);

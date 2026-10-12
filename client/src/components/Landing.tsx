@@ -27,13 +27,14 @@ export default function Landing({
 
   return (
     <div className="landing">
+      <div className="landing-art" aria-hidden="true" />
       <div className="landing-moon" aria-hidden="true">
         <div className="landing-moon-glow" />
         <div className="landing-moon-hole h1" />
         <div className="landing-moon-hole h2" />
         <div className="landing-moon-hole h3" />
       </div>
-      <p className="eyebrow">A cozy village mystery · up to 8 villagers</p>
+      <p className="eyebrow">A storybook mystery for up to eight</p>
       <h1 className="title">
         WHO STOLE
         <br />
@@ -93,7 +94,7 @@ export default function Landing({
           onClick={onJoin}
           disabled={!nameValid || joining || serverOk === false}
         >
-          {joining ? "Knocking on the village gate…" : "Join Village"}
+          {joining ? "Knocking on the village gate…" : "Enter the Village"}
         </button>
 
         {error && (

@@ -3,6 +3,21 @@
 The game has **two** deployables. Static hosting alone is NOT enough — the
 Socket.IO server must run as a persistent process.
 
+## GitHub Pages (frontend)
+The repository workflow at `.github/workflows/deploy.yml` runs on pushes to
+`main` and manual dispatch. It tests the shared/server packages, builds
+`@moon/shared` before `@moon/client`, and publishes only `client/dist`. Vite uses
+the `/Halo/` base path in GitHub Actions builds; local builds keep `/`.
+
+In **Settings → Pages**, set **Build and deployment → Source** to **GitHub
+Actions**. To keep multiplayer online, add a repository Actions variable named
+`VITE_SERVER_URL` whose value is the public origin of the separately deployed
+Socket.IO server (for example `https://moon-server.example.com`, without a path).
+Set that server's `CLIENT_URL` to `https://shivangi-verma-captain.github.io` and
+confirm its host supports persistent WebSocket connections. Without this
+variable the static React game still publishes, but multiplayer cannot connect
+to a server hosted by GitHub Pages.
+
 ## Environment variables
 
 ### Server (`server/`)
